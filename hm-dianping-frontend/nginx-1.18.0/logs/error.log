@@ -3070,3 +3070,5 @@
 2025/09/24 12:21:16 [error] 18428#2236: *161 CreateFile() "E:\sync\code\PM\hmdp\hm-dianping-frontend\nginx-1.18.0/html/hmdp/js/axios.min.map" failed (2: The system cannot find the file specified), client: 127.0.0.1, server: localhost, request: "GET /js/axios.min.map HTTP/1.1", host: "localhost:8080"
 2025/09/24 12:21:17 [error] 18428#2236: *146 CreateFile() "E:\sync\code\PM\hmdp\hm-dianping-frontend\nginx-1.18.0/html/hmdp/.well-known/appspecific/com.chrome.devtools.json" failed (3: The system cannot find the path specified), client: 127.0.0.1, server: localhost, request: "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1", host: "localhost:8080"
 2025/09/24 12:21:17 [error] 18428#2236: *161 CreateFile() "E:\sync\code\PM\hmdp\hm-dianping-frontend\nginx-1.18.0/html/hmdp/js/axios.min.map" failed (2: The system cannot find the file specified), client: 127.0.0.1, server: localhost, request: "GET /js/axios.min.map HTTP/1.1", host: "localhost:8080"
+2025/09/24 16:42:04 [notice] 37376#34052: signal process started
+2025/09/25 11:53:49 [notice] 39852#18352: signal process started
