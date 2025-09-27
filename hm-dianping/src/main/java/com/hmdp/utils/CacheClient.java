@@ -4,6 +4,7 @@ import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.hmdp.entity.Shop;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 // 缓存工具类
+@Slf4j
 @Component
 public class CacheClient {
     @Autowired
@@ -101,21 +103,25 @@ public class CacheClient {
         if(LocalDateTime.now().isBefore(expireTime)) {
             return object;
         }
+        log.info("过期了！");
 
         // 6. 如果过期了，获取锁资源，判断锁资源是否拿到
-        boolean isLock = tryLock(key);
+        String lock_key = RedisConstants.LOCK_SHOP_KEY + id;
+        boolean isLock = tryLock(lock_key);
         if (isLock) {
-            // 7. 如果拿到锁资源，则创建新线程去重建缓存（这里用线程池）
-            executorService.submit(() -> {
-                try {
-                    T tmp = dbCallBack.apply(id); // 查数据库拿到数据
-                    this.setWithLogicExpireTime(key, tmp, time, unit);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    unlock(key);
-                }
-            });
+            try {
+                // 7. 如果拿到锁资源，则创建新线程去重建缓存（这里用线程池）
+                executorService.submit(() -> {
+                    try {
+                        T tmp = dbCallBack.apply(id); // 查数据库拿到数据
+                        this.setWithLogicExpireTime(key, tmp, time, unit);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } finally {
+                unlock(lock_key); // 解锁必须在主线程执行
+            }
         }
 
         // 8. 返回数据
