@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisWorker;
 import com.hmdp.utils.UserHolder;
+import org.springframework.aop.framework.AopContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,6 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private ISeckillVoucherService seckillVoucherService;
 
     @Override
-    @Transactional
     public Result seckill(Long voucherId) {
         // 1. 根据id，获取优惠券信息
         SeckillVoucher seckillVoucher = seckillVoucherService.query().eq("voucher_id", voucherId).one();
@@ -54,7 +54,27 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("优惠券已被抢完！");
         }
 
-        // 5. 如果有库存，则库存减少一个
+        // 💥① 需要在方法外面加锁，因为该方法有@Transactional修饰，等到方法结束才会提交事务，所以如果在方法内加锁，等到解锁后事务才会提交，同样会有并发安全问题！
+        // 💥② 因为加锁是为了同一个用户只能下单一次，所以是互斥同一个用户，那么对于不同用户来说就没办法互斥了，所以可以用userId作为锁对象，提高效率！
+        // 💥③ 由于toString()每次都会创建一个新对象，所以锁就不一样，没办法互斥同一个用户，正确做法是使用 intern() 方法将字符串放到字符串常量池，这样子保证每个用户id每次拿到的字符串对象都是同一个
+        Long userId = UserHolder.getUser().getId();
+        synchronized(userId.toString().intern()) {
+            IVoucherOrderService orderService = (IVoucherOrderService) AopContext.currentProxy();
+            return orderService.deductStock(voucherId, userId);
+        }
+    }
+
+    @Transactional
+    public Result deductStock(Long voucherId, Long userId) {
+        // 5. 解决一人一单问题💥
+        //  5.1 根据用户id，查询对应订单
+        Integer count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        //  5.2 如果存在对应订单，则直接返回
+        if(count > 0) {
+            return Result.fail("已经购买过优惠券了，不可重复购买！");
+        }
+
+        // 6. 如果有库存，则库存减少一个
         boolean isDeduct = seckillVoucherService.update()
                 .eq("voucher_id", voucherId)
                 .gt("stock", 0) // 利用CAS机制，防止并发问题💥
@@ -64,14 +84,14 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             return Result.fail("库存不足！");
         }
 
-        // 6. 创建订单，并且保存到数据库
+        // 7. 创建订单，并且保存到数据库
         VoucherOrder order = new VoucherOrder();
-        order.setUserId(UserHolder.getUser().getId());
+        order.setUserId(userId);
         order.setVoucherId(voucherId);
         order.setId(redisWorker.nextId("order")); // 使用redis创建的全局唯一ID，作为订单ID
         save(order);
 
-        // 7. 返回订单ID
+        // 8. 返回订单ID
         return Result.ok(order.getId());
     }
 }
