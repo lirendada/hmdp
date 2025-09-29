@@ -10,8 +10,10 @@ import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisWorker;
+import com.hmdp.utils.SimpleRedisLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private ISeckillVoucherService seckillVoucherService;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @Override
     public Result seckill(Long voucherId) {
@@ -58,9 +63,28 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         // 💥② 因为加锁是为了同一个用户只能下单一次，所以是互斥同一个用户，那么对于不同用户来说就没办法互斥了，所以可以用userId作为锁对象，提高效率！
         // 💥③ 由于toString()每次都会创建一个新对象，所以锁就不一样，没办法互斥同一个用户，正确做法是使用 intern() 方法将字符串放到字符串常量池，这样子保证每个用户id每次拿到的字符串对象都是同一个
         Long userId = UserHolder.getUser().getId();
-        synchronized(userId.toString().intern()) {
+//        synchronized(userId.toString().intern()) {
+//            IVoucherOrderService orderService = (IVoucherOrderService) AopContext.currentProxy();
+//            return orderService.deductStock(voucherId, userId);
+//        }
+
+        // 引入分布式锁💥
+        // 1. 首先获取分布式锁对象
+        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order");
+
+        // 2. 判断是否获取锁
+        boolean isLock = lock.tryLock(120L);
+        if(!isLock) {
+            // 3. 如果没拿到锁，说明同一用户已经拿到锁并且大概率要抢购订单了，所以当前线程不能再获取了
+            return Result.fail("您已经抢过优惠券了，请勿重复抢购！");
+        }
+
+        // 4. 如果拿到锁了，则开始抢购业务
+        try {
             IVoucherOrderService orderService = (IVoucherOrderService) AopContext.currentProxy();
             return orderService.deductStock(voucherId, userId);
+        } finally {
+            lock.unlock(); // 别忘了释放锁！！！
         }
     }
 
