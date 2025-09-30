@@ -83,3 +83,6 @@
 127.0.0.1 - - [29/Sep/2025:12:58:27 +0800] "POST /api/voucher-order/seckill/11 HTTP/1.1" 200 57 "-" "PostmanRuntime/7.48.0"
 127.0.0.1 - - [29/Sep/2025:13:00:25 +0800] "POST /api/voucher-order/seckill/12 HTTP/1.1" 200 53 "-" "PostmanRuntime/7.48.0"
 127.0.0.1 - - [29/Sep/2025:13:00:27 +0800] "POST /api/voucher-order/seckill/12 HTTP/1.1" 200 93 "-" "PostmanRuntime/7.48.0"
+127.0.0.1 - - [30/Sep/2025:16:27:12 +0800] "GET /api/shop/1 HTTP/1.1" 499 0 "http://localhost:8080/shop-detail.html?id=1" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+127.0.0.1 - - [30/Sep/2025:16:27:26 +0800] "GET /.well-known/appspecific/com.chrome.devtools.json HTTP/1.1" 404 555 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+127.0.0.1 - - [30/Sep/2025:16:27:26 +0800] "GET /js/axios.min.map HTTP/1.1" 404 555 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
