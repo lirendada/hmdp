@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-public class SimpleRedisLock implements ILock {
+public class SimpleLock implements ILock {
 
     private StringRedisTemplate stringRedisTemplate;
 
@@ -19,7 +19,7 @@ public class SimpleRedisLock implements ILock {
 
     private final static String KEY_PREFIX = "lock:"; // key前缀
 
-    public SimpleRedisLock(StringRedisTemplate stringRedisTemplate, String transaction_name) {
+    public SimpleLock(StringRedisTemplate stringRedisTemplate, String transaction_name) {
         this.stringRedisTemplate = stringRedisTemplate;
         this.transaction_name = transaction_name;
     }

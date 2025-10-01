@@ -2,15 +2,13 @@ package com.hmdp.service.impl;
 
 import com.hmdp.dto.Result;
 import com.hmdp.entity.SeckillVoucher;
-import com.hmdp.entity.Voucher;
 import com.hmdp.entity.VoucherOrder;
 import com.hmdp.mapper.VoucherOrderMapper;
 import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.hmdp.service.IVoucherService;
 import com.hmdp.utils.RedisWorker;
-import com.hmdp.utils.SimpleRedisLock;
+import com.hmdp.utils.SimpleLock;
 import com.hmdp.utils.UserHolder;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -70,7 +68,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
         // 引入分布式锁💥
         // 1. 首先获取分布式锁对象
-        SimpleRedisLock lock = new SimpleRedisLock(stringRedisTemplate, "order:" + userId);
+        SimpleLock lock = new SimpleLock(stringRedisTemplate, "order:" + userId);
 
         // 2. 判断是否获取锁
         boolean isLock = lock.tryLock(120L);
