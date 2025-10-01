@@ -10,6 +10,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.hmdp.utils.RedisWorker;
 import com.hmdp.utils.SimpleLock;
 import com.hmdp.utils.UserHolder;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -36,6 +38,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private RedissonClient redissonClient;
 
     @Override
     public Result seckill(Long voucherId) {
@@ -68,12 +73,33 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
         // 引入分布式锁💥
         // 1. 首先获取分布式锁对象
-        SimpleLock lock = new SimpleLock(stringRedisTemplate, "order:" + userId);
+//        SimpleLock lock = new SimpleLock(stringRedisTemplate, "order:" + userId);
+//
+//        // 2. 判断是否获取锁
+//        boolean isLock = lock.tryLock(120L);
+//        if(!isLock) {
+//            // 3. 如果没拿到锁，说明同一用户已经拿到锁并且大概率要抢购订单了，所以当前线程不能再获取了
+//            return Result.fail("您已经抢过优惠券了，请勿重复抢购！");
+//        }
+//
+//        // 4. 如果拿到锁了，则开始抢购业务
+//        try {
+//            IVoucherOrderService orderService = (IVoucherOrderService) AopContext.currentProxy();
+//            return orderService.deductStock(voucherId, userId);
+//        } finally {
+//            lock.unlock(); // 别忘了释放锁！！！
+//        }
 
-        // 2. 判断是否获取锁
-        boolean isLock = lock.tryLock(120L);
+
+        // 引入redisson分布式锁💥💥
+        // 1. 首先获取分布式锁对象
+        RLock lock = redissonClient.getLock("order:" + userId);
+
+        // 2. 尝试上锁
+        boolean isLock = lock.tryLock();
+
+        // 3. 如果没拿到锁，说明同一用户已经拿到锁并且大概率要抢购订单了，所以当前线程不能再获取了
         if(!isLock) {
-            // 3. 如果没拿到锁，说明同一用户已经拿到锁并且大概率要抢购订单了，所以当前线程不能再获取了
             return Result.fail("您已经抢过优惠券了，请勿重复抢购！");
         }
 
@@ -82,7 +108,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             IVoucherOrderService orderService = (IVoucherOrderService) AopContext.currentProxy();
             return orderService.deductStock(voucherId, userId);
         } finally {
-            lock.unlock(); // 别忘了释放锁！！！
+            lock.unlock();
         }
     }
 
