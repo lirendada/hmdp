@@ -8,8 +8,10 @@ import com.hmdp.entity.Blog;
 import com.hmdp.entity.User;
 import com.hmdp.service.IBlogService;
 import com.hmdp.service.IUserService;
+import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
@@ -26,11 +28,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/blog")
 public class BlogController {
-
     @Resource
     private IBlogService blogService;
-    @Resource
-    private IUserService userService;
 
     @PostMapping
     public Result saveBlog(@RequestBody Blog blog) {
@@ -45,10 +44,8 @@ public class BlogController {
 
     @PutMapping("/like/{id}")
     public Result likeBlog(@PathVariable("id") Long id) {
-        // 修改点赞数量
-        blogService.update()
-                .setSql("liked = liked + 1").eq("id", id).update();
-        return Result.ok();
+        // 点击点赞后发送的请求
+        return blogService.likeBlog(id);
     }
 
     @GetMapping("/of/me")
@@ -65,19 +62,17 @@ public class BlogController {
 
     @GetMapping("/hot")
     public Result queryHotBlog(@RequestParam(value = "current", defaultValue = "1") Integer current) {
-        // 根据用户查询
-        Page<Blog> page = blogService.query()
-                .orderByDesc("liked")
-                .page(new Page<>(current, SystemConstants.MAX_PAGE_SIZE));
-        // 获取当前页数据
-        List<Blog> records = page.getRecords();
-        // 查询用户
-        records.forEach(blog ->{
-            Long userId = blog.getUserId();
-            User user = userService.getById(userId);
-            blog.setName(user.getNickName());
-            blog.setIcon(user.getIcon());
-        });
-        return Result.ok(records);
+        return blogService.queryHotBlog(current);
+    }
+
+    @GetMapping("/{id}")
+    public Result queryBlog(@PathVariable("id") Long blog_id) {
+        return blogService.queryBlog(blog_id);
+    }
+
+    @GetMapping("/likes/{id}")
+    public Result likesBlog(@PathVariable("id") Long id) {
+        // 打开博客详情后加载点赞排行榜
+        return blogService.likesBlog(id);
     }
 }

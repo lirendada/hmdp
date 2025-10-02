@@ -147,6 +147,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 .update();
         if(!isDeduct) {
             log.error("库存不足！");
+            return;
         }
 
         // 保存订单到数据库
