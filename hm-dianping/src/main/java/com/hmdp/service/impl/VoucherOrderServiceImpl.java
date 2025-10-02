@@ -139,19 +139,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
 
     @Transactional
     public void createOrder(VoucherOrder order) {
-        Long userId = order.getUserId();
-        Long voucherId = order.getVoucherId();
-
-        // 判断是否重复购买
-        Integer count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
-        if(count > 0) {
-            log.error("已经购买过优惠券了，不可重复购买！");
-            return;
-        }
-
-        // 扣减库存
+        // 扣减数据库中的库存
         boolean isDeduct = seckillVoucherService.update()
-                .eq("voucher_id", voucherId)
+                .eq("voucher_id", order.getVoucherId())
                 .gt("stock", 0) // 利用CAS机制，防止并发问题💥
                 .setSql("stock = stock - 1")
                 .update();
@@ -159,7 +149,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
             log.error("库存不足！");
         }
 
-        // 7. 保存订单到数据库
+        // 保存订单到数据库
         save(order);
     }
 
