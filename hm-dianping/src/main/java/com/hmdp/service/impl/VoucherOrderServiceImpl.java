@@ -92,21 +92,24 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     private void handleOrder(VoucherOrder order) {
         // 1. 首先获取分布式锁对象
         RLock lock = redissonClient.getLock("order:" + order.getUserId());
-
-        // 2. 尝试上锁
-        boolean isLock = lock.tryLock();
-
-        // 3. 如果没拿到锁，说明同一用户已经拿到锁并且大概率要抢购订单了，所以当前线程不能再获取了
-        if(!isLock) {
-            log.error("您已经抢过优惠券了，请勿重复抢购！");
-            return;
-        }
-
-        // 4. 如果拿到锁了，则开始抢购业务
+        boolean isLock = false;
         try {
+            // 2. 尝试上锁
+            isLock = lock.tryLock();
+
+            // 3. 如果没拿到锁，说明同一用户已经拿到锁并且大概率要抢购订单了，所以当前线程不能再获取了
+            if(!isLock) {
+                log.error("您已经抢过优惠券了，请勿重复抢购！");
+                return;
+            }
+
+            // 4. 如果拿到锁了，则开始抢购业务
             proxy.createOrder(order);
+
         } finally {
-            lock.unlock();
+            if(isLock) {
+                lock.unlock();
+            }
         }
     }
 
@@ -139,27 +142,25 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         Long userId = order.getUserId();
         Long voucherId = order.getVoucherId();
 
-        synchronized (userId.toString().intern()) {
-            // 判断是否重复购买
-            Integer count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
-            if(count > 0) {
-                log.error("已经购买过优惠券了，不可重复购买！");
-                return;
-            }
-
-            // 扣减库存
-            boolean isDeduct = seckillVoucherService.update()
-                    .eq("voucher_id", voucherId)
-                    .gt("stock", 0) // 利用CAS机制，防止并发问题💥
-                    .setSql("stock = stock - 1")
-                    .update();
-            if(!isDeduct) {
-                log.error("库存不足！");
-            }
-
-            // 7. 保存订单到数据库
-            save(order);
+        // 判断是否重复购买
+        Integer count = query().eq("user_id", userId).eq("voucher_id", voucherId).count();
+        if(count > 0) {
+            log.error("已经购买过优惠券了，不可重复购买！");
+            return;
         }
+
+        // 扣减库存
+        boolean isDeduct = seckillVoucherService.update()
+                .eq("voucher_id", voucherId)
+                .gt("stock", 0) // 利用CAS机制，防止并发问题💥
+                .setSql("stock = stock - 1")
+                .update();
+        if(!isDeduct) {
+            log.error("库存不足！");
+        }
+
+        // 7. 保存订单到数据库
+        save(order);
     }
 
 //    @Override
