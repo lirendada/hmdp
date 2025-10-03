@@ -47,8 +47,8 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             // 1. 如果isFollow为true，表示点击了关注
             // 1.1 向数据库中插入关注信息
             Follow follow = new Follow();
-            follow.setUserId(bloggerId);
-            follow.setFollowUserId(userId);
+            follow.setUserId(userId);
+            follow.setFollowUserId(bloggerId);
             boolean isSuccess = save(follow);
 
             // 1.2 插入当前用户关注的博主到redis中，方便后面查看共同关注
@@ -60,8 +60,8 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
             // 2. 如果isFollow为false，表示要取消关注
             // 2.1 将数据库中该关注信息删除
             boolean isSuccess = remove(new QueryWrapper<Follow>()
-                    .eq("user_id", bloggerId)
-                    .eq("follow_user_id", userId));
+                    .eq("user_id", userId)
+                    .eq("follow_user_id", bloggerId));
 
             // 2.2 删除redis中当前用户关注的博主id
             if(isSuccess) {

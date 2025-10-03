@@ -7,20 +7,26 @@ import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.hmdp.dto.Result;
+import com.hmdp.dto.ScrollResult;
 import com.hmdp.dto.UserDTO;
 import com.hmdp.entity.Blog;
+import com.hmdp.entity.Follow;
 import com.hmdp.entity.User;
 import com.hmdp.mapper.BlogMapper;
 import com.hmdp.service.IBlogService;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.hmdp.service.IFollowService;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RedisConstants;
 import com.hmdp.utils.SystemConstants;
 import com.hmdp.utils.UserHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -34,6 +40,7 @@ import java.util.stream.Collectors;
  * @author 虎哥
  * @since 2021-12-22
  */
+@Slf4j
 @Service
 public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IBlogService {
     @Resource
@@ -41,6 +48,9 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
 
     @Resource
     private StringRedisTemplate stringRedisTemplate;
+
+    @Resource
+    private IFollowService followService;
 
     @Override
     public Result queryHotBlog(Integer current) {
@@ -129,6 +139,91 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
                 .collect(Collectors.toList());
 
         return Result.ok(userDTOS);
+    }
+
+    @Override
+    public Result saveBlog(Blog blog) {
+        // 1. 获取登录用户
+        UserDTO user = UserHolder.getUser();
+        blog.setUserId(user.getId());
+
+        // 2. 保存探店博文
+        save(blog);
+
+        // 3. 获取该博主的所有粉丝
+        List<Long> followUserIds = followService.query().eq("follow_user_id", user.getId()).list()
+                .stream()
+                .map(Follow::getUserId)
+                .collect(Collectors.toList());
+
+        // 4. 将博客推送给粉丝
+        for(Long id : followUserIds) {
+            stringRedisTemplate.opsForZSet().add(RedisConstants.FEED_KEY + id, blog.getId().toString(), System.currentTimeMillis());
+        }
+
+        // 返回id
+        return Result.ok(blog.getId());
+    }
+
+    @Override
+    public Result queryFollow(Long lastId, Integer offset) {
+        // 1. 获取当前用户信息
+        Long userId = UserHolder.getUser().getId();
+
+        // 2. 获取redis中的推送内容
+        Set<ZSetOperations.TypedTuple<String>> typedTuples = stringRedisTemplate.opsForZSet()
+                .reverseRangeByScoreWithScores(
+                    RedisConstants.FEED_KEY + userId,
+                    0,
+                    lastId,
+                    offset,
+                    2
+        );
+        if(typedTuples == null || typedTuples.isEmpty()) {
+            return Result.ok(Collections.emptyList());
+        }
+
+        // 3. 解析要传给前端的部分
+        List<Long> list = new ArrayList<>(typedTuples.size());
+        long minTime = 0;
+        int os = 1;
+        for(ZSetOperations.TypedTuple<String> e : typedTuples) {
+            // 取出博客id、时间戳
+            long blogId = Long.parseLong(e.getValue());
+            long score = e.getScore().longValue();
+
+            // 给三个变量赋值
+            list.add(blogId);
+            if(minTime == score) {
+                os++;
+            } else {
+                minTime = score;
+                os = 1;
+            }
+        }
+        log.info("list=" + list);
+
+
+        // 4. 将List<Long>转化为List<Blog>
+        String idsStr = StrUtil.join(",", list);
+        List<Blog> blogs = query().in("id", list).last("order by field(id, " + idsStr + ")").list();
+        for(Blog blog : blogs) {
+            // 获取用户信息，填充Blog
+            setUser(blog);
+
+            // 追加判断blog是否被当前用户点赞，逻辑封装到isBlogLiked方法中
+            isBlogLiked(blog);
+        }
+        log.info("blogs=" + blogs);
+
+        // 5. 封装成ScrollResult
+        ScrollResult scrollResult = new ScrollResult();
+        scrollResult.setList(blogs);
+        scrollResult.setOffset(os);
+        scrollResult.setMinTime(minTime);
+
+        // 6. 返回
+        return Result.ok(scrollResult);
     }
 
 
