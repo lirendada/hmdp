@@ -135,7 +135,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     private void isBlogLiked(Blog blog) {
         // 1. 获取用户信息
         UserDTO user = UserHolder.getUser();
-        if(user == null) {
+        if(user == null || user.getId() == null) {
             return;
         }
 

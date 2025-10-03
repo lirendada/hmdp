@@ -6,8 +6,14 @@ local userId = ARGV[2]
 local stock_key = "seckill:stock:" .. voucherId
 local order_key = "seckill:order:" .. voucherId
 
+-- 获取库存
+local stock = redis.call("get", stock_key)
+if (stock == false) then
+    return 3   -- 表示库存数据不存在
+end
+
 -- 判断库存是否充足
-if (tonumber(redis.call("get", stock_key)) < 1) then
+if (tonumber(stock) < 1) then
     return 1
 end
 

@@ -51,7 +51,25 @@ public class CacheClient {
 
         // 2. 存在缓存，并且有内容，说明是真的有信息，则直接返回对象
         if (StringUtils.hasText(jsonStr)) {
-            return JSONUtil.toBean(jsonStr, type);
+            try {
+                // 先尝试直接转为对象
+                T bean;
+                if (jsonStr.trim().startsWith("{")) {
+                    JSONObject jsonObject = JSONUtil.parseObj(jsonStr);
+                    // 如果存在 data 字段，就取 data 部分
+                    if (jsonObject.containsKey("data")) {
+                        bean = JSONUtil.toBean(jsonObject.getJSONObject("data"), type);
+                    } else {
+                        bean = JSONUtil.toBean(jsonObject, type);
+                    }
+                } else {
+                    // 如果不是对象，而是字符串等，直接转
+                    bean = JSONUtil.toBean(jsonStr, type);
+                }
+                return bean;
+            } catch (Exception e) {
+                log.error("反序列化缓存失败，jsonStr={}", jsonStr, e);
+            }
         }
 
         // 存在缓存，但是没有内容，说明是空对象，是为了避免缓存穿透的，直接返回null

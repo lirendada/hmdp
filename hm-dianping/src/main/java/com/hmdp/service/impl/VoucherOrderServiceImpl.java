@@ -117,7 +117,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     public Result seckill(Long voucherId) {
         // 1. 执行lua脚本
         Long userId = UserHolder.getUser().getId();
-        Long result = stringRedisTemplate.execute(SeckillRedisScript, Collections.emptyList(), voucherId, userId);
+        Long result = stringRedisTemplate.execute(SeckillRedisScript, Collections.emptyList(), voucherId.toString(), userId.toString());
 
         // 2. 判断是否异常
         if(result != 0) {
